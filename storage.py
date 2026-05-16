@@ -2,66 +2,107 @@ import json
 from datetime import datetime
 from config import CONFIG
 
+
+# ── IDENTITY VECTOR ───────────────────────────────────────────────────────────
+
 def _empty_identity_vector(dim):
     return [0.0] * dim
+
 
 def _coerce_identity_vector(vector, dim):
     if len(vector) == 1 and isinstance(vector[0], list):
         vector = vector[0]
-
     if len(vector) != dim:
         return _empty_identity_vector(dim)
-
     try:
-        return [float(value) for value in vector]
+        return [float(v) for v in vector]
     except (TypeError, ValueError):
         return _empty_identity_vector(dim)
 
-def load_identity_state(dim, config=CONFIG):
-    """Loads the persisted identity vector, or returns an empty vector."""
-    identity_state_path = config["identity_state_path"]
 
-    if not identity_state_path.exists():
-        return _empty_identity_vector(dim)
+def load_identity_state(dim, config=CONFIG):
+    """
+    Loads the full persisted identity state, returning:
+        identity_vector   : list[float]  — the accumulated embedding centroid
+        efficiency_by_cat : dict[str, float] — EMA of efficiency per category
+    """
+    path = config["identity_state_path"]
+
+    if not path.exists():
+        return _empty_identity_vector(dim), {}
 
     try:
-        with open(identity_state_path, "r") as f:
+        with open(path, "r") as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError, TypeError):
-        return _empty_identity_vector(dim)
+        return _empty_identity_vector(dim), {}
 
     if not isinstance(data, dict):
-        return _empty_identity_vector(dim)
+        return _empty_identity_vector(dim), {}
 
-    vector = data.get("identity_vector", data.get("accumulated_vector", []))
-    if not isinstance(vector, list):
-        return _empty_identity_vector(dim)
+    # Support old schema key ("accumulated_vector") transparently
+    raw_vector = data.get("identity_vector", data.get("accumulated_vector", []))
+    if not isinstance(raw_vector, list):
+        raw_vector = []
 
-    return _coerce_identity_vector(vector, dim)
+    vector = _coerce_identity_vector(raw_vector, dim)
+    efficiency_by_cat = data.get("efficiency_by_category", {})
 
-def save_identity_state(vector, config=CONFIG):
-    """Persists the identity vector to the configured JSON state file."""
-    identity_state_path = config["identity_state_path"]
-    identity_state_path.parent.mkdir(parents=True, exist_ok=True)
-    vector = [float(value) for value in vector]
+    return vector, efficiency_by_cat
 
-    with open(identity_state_path, "w") as f:
+
+def save_identity_state(vector, efficiency_by_cat, config=CONFIG):
+    """
+    Persists the identity vector and per-category efficiency EMA.
+    Schema:
+        identity_vector        : list[float]
+        dimension              : int
+        efficiency_by_category : dict[str, float]
+        updated_at             : ISO-8601 string
+    """
+    path = config["identity_state_path"]
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(path, "w") as f:
         json.dump({
-            "identity_vector": vector,
-            "dimension": len(vector),
-            "updated_at": datetime.utcnow().isoformat()
-        }, f)
+            "identity_vector":        [float(v) for v in vector],
+            "dimension":              len(vector),
+            "efficiency_by_category": efficiency_by_cat,
+            "updated_at":             datetime.utcnow().isoformat(),
+        }, f, indent=2)
 
-def save_event(event):
-    """Persists an event to the configured JSONL storage."""
-    event_log_path = CONFIG["event_log_path"]
-    
-    # Ensure the parent directory exists
-    event_log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Ensure timestamp is present
+# ── EVENT LOG ─────────────────────────────────────────────────────────────────
+
+def save_event(event, config=CONFIG):
+    """Appends a processed event to the JSONL event log."""
+    path = config["event_log_path"]
+    path.parent.mkdir(parents=True, exist_ok=True)
+
     if "timestamp" not in event:
         event["timestamp"] = datetime.utcnow().isoformat()
 
-    with open(event_log_path, "a") as f:
+    with open(path, "a") as f:
         f.write(json.dumps(event) + "\n")
+
+
+def load_events(config=CONFIG):
+    """
+    Reads all events from the JSONL log.
+    Returns a list of dicts, skipping malformed lines silently.
+    """
+    path = config["event_log_path"]
+    if not path.exists():
+        return []
+
+    events = []
+    with open(path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return events
