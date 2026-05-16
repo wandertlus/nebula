@@ -1,0 +1,11 @@
+{
+  "body": {
+    "signal_type": "space_news",
+    "content": "New exoplanet discovered in the Andromeda galaxy.",
+    "priority": "high"
+  },
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "query": {}
+}
