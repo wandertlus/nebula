@@ -34,4 +34,17 @@ CONFIG = {
     
     # Physics Parameters (Sprint 4)
     "inertia": 0.9, # Resistance to identity change (0.0 to 1.0)
+    "beta_duration": 0.7, # rendimientos decrecientes
+    "gamma_effort": 1.3, # rendimientos crecientes hasta límite
+    "base_duration": 30.0, # minutos de referencia para normalización
+    "efficiency_alpha": 0.1, # EMA de eficiencia histórica por categoría
+    "effort_by_category": {
+        "Work":       0.8,
+        "Education":  0.9,
+        "Health":     0.7,
+        "Rest":       0.2,
+        "Distraction":0.1,
+        "space_news": 0.4,
+        "Void":       0.0,
+    }
 }

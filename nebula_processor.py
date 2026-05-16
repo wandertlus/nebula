@@ -37,10 +37,13 @@ class ProjectNebulaProcessor:
             self.minilm_available = True
         except ImportError:
             self.minilm_available = False
+            if self.backend == "minilm":
+                print("⚠️ Warning: minilm backend selected but sentence_transformers is not installed. Falling back to tfidf.")
+                self.backend = "tfidf"
         
         # Identity State (Sprint 4)
         self.inertia = self.config.get("inertia", 0.9)
-        self.current_identity = self.load_identity_state()
+        self.current_identity, self.efficiency_by_category = self.load_identity_state()
 
     def clean_text(self, text):
         """Lowercase and tokenize the incoming action text."""
@@ -50,26 +53,33 @@ class ProjectNebulaProcessor:
         return " ".join([t for t in tokens if t.isalnum()])
 
     def load_identity_state(self):
-        """Loads the current identity centroid from persistence."""
+        """Loads the current identity centroid and historical efficiency from persistence."""
         path = self.config["identity_state_path"]
+        eff_by_cat = {}
+        # Initialize with zeros if no state exists
+        dim = 384 if self.backend == "minilm" else len(self.vectorizer.get_feature_names_out())
+        
         if path.exists():
             try:
                 with open(path, "r") as f:
                     data = json.load(f)
-                    return np.array(data["accumulated_vector"])
+                    vector = np.array(data["accumulated_vector"])
+                    eff_by_cat = data.get("efficiency_by_category", {})
+                    # Ensure the loaded vector has the correct dimension
+                    if vector.shape[0] == dim:
+                        return vector, eff_by_cat
             except Exception:
                 pass
-        
-        # Initialize with zeros if no state exists
-        dim = 384 if self.backend == "minilm" else len(self.identities)
-        return np.zeros(dim)
 
-    def save_identity_state(self, vector):
-        """Persists the updated identity centroid."""
+        return np.zeros(dim), eff_by_cat
+
+    def save_identity_state(self, vector, eff_by_cat):
+        """Persists the updated identity centroid and historical efficiency."""
         path = self.config["identity_state_path"]
         with open(path, "w") as f:
             json.dump({
-                "accumulated_vector": vector.tolist(), 
+                "accumulated_vector": vector.tolist(),
+                "efficiency_by_category": eff_by_cat,
                 "updated_at": datetime.utcnow().isoformat()
             }, f)
 
@@ -129,6 +139,20 @@ class ProjectNebulaProcessor:
             category = payload.get("signal_type") or payload.get("category", "Void")
             priority = payload.get("priority", "medium")
             duration = payload.get("duration", 0)
+            
+            # Effort Inference
+            base_effort = self.config.get("effort_by_category", {}).get(category, 0.5)
+            effort = base_effort
+            if priority == "high":
+                effort = min(1.0, effort * 1.15)
+            elif priority == "low":
+                effort = effort * 0.85
+                
+            custom_effort_signals = payload.get("effort_signals", {}).get("custom", {})
+            effort_signals = {
+                "inferred_effort": effort,
+                "custom": custom_effort_signals
+            }
 
             cleaned_text = self.clean_text(action_text)
             multi_alignments = self.calculate_alignment(cleaned_text)
@@ -149,10 +173,16 @@ class ProjectNebulaProcessor:
             else:
                 signal_vector = self.model_minilm.encode([cleaned_text])
             
+            # Calculate base weight before dynamic_pull
+            weight = self.config["impact_tones"].get(category, 0.0)
+            if priority == "high":
+                weight *= 1.2
+
             # Calculate Dynamic Pull (Phase 4C)
             # Baseline: a 30-min medium priority task pulls by (1 - inertia)
-            base_duration = 30
-            duration_factor = max(0.1, duration / base_duration)
+            base_duration = self.config.get("base_duration", 30.0)
+            duration_norm = duration / base_duration if base_duration > 0 else 1.0
+            duration_factor = max(0.1, duration_norm)
             
             # dynamic_pull scales with impact_weight and duration
             dynamic_pull = (1 - self.inertia) * weight * duration_factor
@@ -164,7 +194,6 @@ class ProjectNebulaProcessor:
             # Update global identity using Dynamic Pull
             # new = (old * (1 - pull)) + (signal * pull)
             self.current_identity = (identity_before * (1 - dynamic_pull)) + (signal_vector * dynamic_pull)
-            self.save_identity_state(self.current_identity)
             
             # Calculate drift delta (Distance moved)
             drift_delta = float(np.linalg.norm(self.current_identity - identity_before))
@@ -172,20 +201,48 @@ class ProjectNebulaProcessor:
             # Calculate Global Dominance (Who are you becoming?)
             global_dominance = self.calculate_alignment_for_vector(self.current_identity)
             global_dominant_identity = max(global_dominance, key=global_dominance.get)
-            # ----------------------------------------
-
-            weight = self.config["impact_tones"].get(category, 0.0)
             
-            if priority == "high":
-                weight *= 1.2
+            # --- PHYSICS FORMULA: Impacto(t) ---
+            beta = self.config.get("beta_duration", 1.0)
+            gamma = self.config.get("gamma_effort", 1.0)
+            
+            final_score = alignment_score * weight * (duration_norm ** beta) * (effort ** gamma)
+            
+            # --- EFFICIENCY CALCULATION ---
+            result_value = payload.get("result_value")
+            
+            if result_value is not None and duration > 0:
+                efficiency_t = result_value / duration
+                
+                # Compare against EMA for this category
+                hist_eff = self.efficiency_by_category.get(category, 0.0)
+                if hist_eff > 0:
+                    efficiency_ratio = efficiency_t / hist_eff
+                else:
+                    efficiency_ratio = 1.0
+                    
+                # Update EMA
+                alpha = self.config.get("efficiency_alpha", 0.1)
+                new_hist_eff = (1 - alpha) * hist_eff + alpha * efficiency_t
+                self.efficiency_by_category[category] = new_hist_eff
+            else:
+                efficiency_t = None
+                efficiency_ratio = None
+            
+            self.save_identity_state(self.current_identity, self.efficiency_by_category)
 
             physics = {
                 "alignment": alignment_score, 
                 "impact_weight": weight,
+                "duration_norm": duration_norm,
+                "effort": effort,
+                "effort_signals": effort_signals,
+                "efficiency_t": efficiency_t,
+                "efficiency_ratio": efficiency_ratio,
+                "historical_efficiency_ema": self.efficiency_by_category.get(category, 0.0),
                 "dominant_attractor": dominant_attractor,
                 "all_alignments": alignments
             }
-            final_score = physics["alignment"] * physics["impact_weight"]
             result = self.determine_state(final_score)
 
             event_id = str(uuid.uuid4())
@@ -196,6 +253,7 @@ class ProjectNebulaProcessor:
                 "action_text": action_text,
                 "category": category,
                 "duration": duration,
+                "effort_signals": effort_signals,
                 "priority": priority,
                 "alignment_score": alignment_score,
                 "weight": weight,
@@ -206,6 +264,12 @@ class ProjectNebulaProcessor:
                 "physics_params": {
                     "alignment": alignment_score,
                     "impact_weight": weight,
+                    "effort": effort,
+                    "effort_signals": effort_signals,
+                    "duration_norm": duration_norm,
+                    "efficiency_t": efficiency_t,
+                    "efficiency_ratio": efficiency_ratio,
+                    "historical_efficiency_ema": self.efficiency_by_category.get(category, 0.0),
                     "all_alignments": alignments,
                     "multi_backend_comparison": multi_alignments,
                     "active_backend": self.backend,
@@ -229,6 +293,7 @@ class ProjectNebulaProcessor:
                 "global_dominant_identity": global_dominant_identity,
                 "drift_delta": drift_delta,
                 "final_score": final_score,
+                "efficiency_ratio": efficiency_ratio,
                 "active_backend": self.backend,
                 "physics": physics,
                 "cleaned_text": cleaned_text
@@ -248,7 +313,12 @@ if __name__ == "__main__":
         test_input = json.dumps({
             "content": "Exploring the event horizon of code architecture",
             "category": "Work",
-            "priority": "high"
+            "priority": "high",
+            "duration": 60,
+            "result_value": 8.0,
+            "effort_signals": {
+                "custom": {"focus_level": "deep"}
+            }
         })
     
     output = processor.project_signal_state(test_input)
