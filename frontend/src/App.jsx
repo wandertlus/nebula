@@ -1,31 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import MetricCard from './components/MetricCard';
-import IdentityChart from './components/IdentityChart';
 import SignalInput from './components/SignalInput';
-import { Activity, Brain, Target, Zap } from 'lucide-react';
+import IdentityFields from './components/IdentityFields';
+import Nebula3DBackground from './components/Nebula3DBackground';
 
 const API_BASE = 'http://localhost:8000/api';
 
 function App() {
   const [events, setEvents] = useState([]);
-  const [state, setState] = useState(null);
+  const [fieldMasses, setFieldMasses] = useState({});
+  const [connections, setConnections] = useState({});
+  const [dominant, setDominant] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [apiOnline, setApiOnline] = useState(true);
+  const [flash, setFlash] = useState(false);
 
   const fetchData = async () => {
     try {
-      const [eventsRes, stateRes] = await Promise.all([
+      const [eventsRes, massRes] = await Promise.all([
         fetch(`${API_BASE}/events`),
-        fetch(`${API_BASE}/state`)
+        fetch(`${API_BASE}/field-mass`),
       ]);
-      
+
       const eventsData = await eventsRes.json();
-      const stateData = await stateRes.json();
-      
+      const massData   = await massRes.json();
+
       setEvents(eventsData.events || []);
-      setState(stateData);
+      setFieldMasses(massData.field_masses || {});
+      setConnections(massData.connections || {});
+      setDominant(massData.dominant || null);
+      setApiOnline(true);
     } catch (error) {
-      console.error("Failed to fetch data:", error);
+      console.error('Failed to fetch data:', error);
+      setApiOnline(false);
     } finally {
       setLoading(false);
     }
@@ -35,90 +43,142 @@ function App() {
     fetchData();
   }, []);
 
+  // Dynamic Theme: Update global CSS variables based on dominant field
+  useEffect(() => {
+    const root = document.documentElement;
+    const FIELD_COLORS = {
+      engineering: '#BC13FE',
+      fitness:     '#FF8C00',
+      be_fluent:   '#5ba8e8',
+    };
+    
+    const color = FIELD_COLORS[dominant] || '#BC13FE';
+    root.style.setProperty('--neon-purple', color);
+    root.style.setProperty('--glow-text', `0 0 10px ${color}66, 0 0 20px ${color}33`);
+  }, [dominant]);
+
   const handleSignalSubmit = async (payload) => {
     setSubmitting(true);
     try {
       const res = await fetch(`${API_BASE}/signal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
-        await fetchData(); // Refresh all data
+        setFlash(true);
+        setTimeout(() => setFlash(false), 600);
+        await fetchData();
       }
     } catch (error) {
-      console.error("Failed to submit signal:", error);
+      console.error('Failed to submit signal:', error);
     } finally {
       setSubmitting(false);
     }
   };
 
+  const latestEvent  = events[events.length - 1] || {};
+  const currentState = latestEvent.state || 'Friction';
+  const finalScore   = latestEvent.final_score ?? 0;
+  const driftDelta   = latestEvent.physics_params?.identity_snapshot?.drift_delta ?? 0;
+
   if (loading) {
-    return <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>Initializing Cerebral Cortex...</div>;
+    return (
+      <>
+        <Nebula3DBackground fieldMasses={fieldMasses} connections={connections} currentState={currentState} />
+        <div className="loading-screen">
+          <div className="loading-text">Initializing Semantic Observatory</div>
+        </div>
+      </>
+    );
   }
 
-  const latestEvent = events[events.length - 1] || {};
-  const efficiency = latestEvent.effort_signals?.efficiency_ratio || 1.0;
-  
+  const efficiency = latestEvent.effort_signals?.efficiency_ratio ?? null;
+
   return (
-    <div className="app-container">
-      <header className="header">
-        <h1>Nebula Engine</h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)' }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success-green)', boxShadow: '0 0 10px var(--success-green)' }} />
-          System Online
-        </div>
-      </header>
+    <>
+      <Nebula3DBackground
+        fieldMasses={fieldMasses}
+        connections={connections}
+        currentState={currentState}
+        finalScore={finalScore}
+        driftDelta={driftDelta}
+      />
 
-      <div className="metrics-grid">
-        <MetricCard 
-          title="Total Signals" 
-          value={events.length} 
-          icon={Activity} 
-        />
-        <MetricCard 
-          title="Last State" 
-          value={latestEvent.state || 'Unknown'} 
-          color={latestEvent.state === 'Friction' ? 'var(--neon-purple)' : latestEvent.state === 'Degenerate Matter' ? 'var(--warning-orange)' : 'var(--text-main)'}
-          icon={Brain} 
-        />
-        <MetricCard 
-          title="Identity Drift" 
-          value={latestEvent.physics_params?.identity_snapshot?.drift_delta?.toFixed(4) || '0.0000'} 
-          icon={Target} 
-        />
-        <MetricCard 
-          title="Efficiency Ratio" 
-          value={efficiency.toFixed(2)} 
-          delta={efficiency >= 1 ? '+Optimal' : '-Suboptimal'}
-          icon={Zap} 
-        />
-      </div>
+      <div className={`app-container animate-in ${flash ? 'signal-flash' : ''}`}>
 
-      <div className="charts-grid">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <IdentityChart data={events} />
-          <SignalInput onSubmit={handleSignalSubmit} isLoading={submitting} />
-        </div>
-        
-        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column' }}>
-          <h3 style={{ fontSize: '1rem', color: 'var(--text-main)', marginBottom: '16px' }}>Recent Signals</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', flex: 1, maxHeight: '500px', paddingRight: '8px' }}>
-            {events.slice(-10).reverse().map((ev, idx) => (
-              <div key={idx} style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', borderLeft: `3px solid ${ev.state === 'Friction' ? 'var(--neon-purple)' : 'var(--warning-orange)'}` }}>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '4px' }}>{new Date(ev.timestamp).toLocaleTimeString()} • {ev.category}</div>
-                <div style={{ color: 'var(--text-main)', fontSize: '0.95rem', lineHeight: 1.4 }}>{ev.action_text}</div>
-                <div style={{ display: 'flex', gap: '12px', marginTop: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  <span>Score: {ev.final_score?.toFixed(2) || (ev.physics_params ? ev.physics_params.final_score?.toFixed(2) : '0')}</span>
-                  <span>Effort: {ev.effort_signals?.effort || (ev.physics_params ? ev.physics_params.effort : '0')}</span>
-                </div>
-              </div>
-            ))}
-            {events.length === 0 && <div style={{ color: 'var(--text-muted)' }}>No signals detected.</div>}
+        {/* ── TOP LEFT: Identifier ── */}
+        <header className="header">
+          <h1>Nebula</h1>
+          <div className="header-status">
+            <div className={`status-dot ${apiOnline ? 'online' : 'offline'}`} />
+            {apiOnline ? 'Telemetry Online' : 'Observatory Disconnected'}
+          </div>
+        </header>
+
+        {/* ── TOP RIGHT: Live metrics + Identity Fields ── */}
+        <div className="metrics-grid">
+          <MetricCard
+            title="Total Signals"
+            value={events.length}
+          />
+          <MetricCard
+            title="Last Impulse"
+            value={finalScore >= 0 ? `+${finalScore.toFixed(3)}` : finalScore.toFixed(3)}
+            color={finalScore >= 0.1 ? 'var(--neon-purple)' : finalScore < 0 ? 'var(--warning-orange)' : 'var(--text-muted)'}
+          />
+          <MetricCard
+            title="Identity Drift"
+            value={driftDelta.toFixed(4)}
+          />
+          <MetricCard
+            title="Efficiency"
+            value={efficiency !== null ? efficiency.toFixed(2) : '—'}
+            delta={efficiency !== null ? (efficiency >= 1 ? '+Optimal' : '-Sub') : null}
+          />
+
+          {/* Identity field mass bars live inside the metrics column */}
+          <div style={{ gridColumn: '1 / -1', marginTop: '8px' }}>
+            <IdentityFields fieldMasses={fieldMasses} dominant={dominant} />
           </div>
         </div>
+
+        {/* ── MIDDLE LEFT: Telemetry feed ── */}
+        <div className="telemetry-feed" style={{ overflowY: 'auto', pointerEvents: 'auto' }}>
+          {events.slice(-50).reverse().map((ev, idx) => {
+            const stateColor = ev.state === 'Friction'
+              ? 'var(--neon-purple)'
+              : ev.state === 'Black Hole'
+              ? 'var(--warning-orange)'
+              : 'var(--text-muted)';
+            return (
+              <div key={idx} className="signal-item">
+                <div className="signal-meta">
+                  [{new Date(ev.timestamp).toLocaleTimeString()}]&nbsp;
+                  {ev.category.toUpperCase()}&nbsp;
+                  <span style={{ color: stateColor }}>• {ev.state}</span>
+                </div>
+                <div className="signal-text">{ev.action_text}</div>
+                <div className="signal-stats">
+                  <span>IMP: {ev.final_score?.toFixed(3) ?? '0'}</span>
+                  <span>DOM: {ev.dominant_attractor ?? '—'}</span>
+                  <span>DRF: {ev.physics_params?.identity_snapshot?.drift_delta?.toFixed(4) ?? '0'}</span>
+                </div>
+              </div>
+            );
+          })}
+          {events.length === 0 && (
+            <div style={{ color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', fontSize: '0.9rem' }}>
+              Awaiting signals...
+            </div>
+          )}
+        </div>
+
+        {/* ── BOTTOM LEFT: Command input ── */}
+        <SignalInput onSubmit={handleSignalSubmit} isLoading={submitting} />
+
       </div>
-    </div>
+    </>
   );
 }
 

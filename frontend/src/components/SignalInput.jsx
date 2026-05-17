@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Send } from 'lucide-react';
 
 const SignalInput = ({ onSubmit, isLoading }) => {
   const [content, setContent] = useState('');
@@ -22,115 +21,87 @@ const SignalInput = ({ onSubmit, isLoading }) => {
   };
 
   return (
-    <div className="glass-panel" style={{ marginTop: 'auto' }}>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <h3 style={{ fontSize: '1rem', color: 'var(--text-main)', marginBottom: '8px' }}>Inject Signal</h3>
+    <div className="command-input">
+      <div className="cmd-prompt">_&gt;</div>
+      
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
         
-        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-          <input
-            type="text"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="What action did you complete?"
-            style={{
-              flex: 1,
-              minWidth: '250px',
-              background: 'rgba(0,0,0,0.3)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
-              padding: '12px 16px',
-              color: 'var(--text-main)',
-              fontFamily: 'var(--font-body)',
-              fontSize: '1rem',
-              outline: 'none'
-            }}
-            disabled={isLoading}
-          />
-          
+        {/* Main text input */}
+        <input
+          type="text"
+          className="terminal-input"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="Inject signal to observatory..."
+          disabled={isLoading}
+          autoFocus
+        />
+
+        {/* Controls row */}
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ color: 'var(--text-dim)', fontSize: '9px', letterSpacing: '0.3em' }}>CAT</label>
           <select 
+            className="terminal-select"
             value={category} 
             onChange={(e) => setCategory(e.target.value)}
-            style={{
-              background: 'rgba(0,0,0,0.3)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
-              padding: '12px 16px',
-              color: 'var(--text-main)',
-              fontFamily: 'var(--font-body)',
-              outline: 'none',
-              cursor: 'pointer'
-            }}
             disabled={isLoading}
           >
-            <option value="Work">Work</option>
-            <option value="Education">Education</option>
-            <option value="Health">Health</option>
-            <option value="space_news">Space News</option>
-            <option value="Rest">Rest</option>
-            <option value="Distraction">Distraction</option>
+            <option value="Work">work</option>
+            <option value="Education">education</option>
+            <option value="Health">health</option>
+            <option value="Rest">rest</option>
+            <option value="Distraction">distraction</option>
+            <option value="space_news">space_news</option>
           </select>
 
+          <label style={{ color: 'var(--text-dim)', fontSize: '9px', letterSpacing: '0.3em' }}>PRI</label>
           <select 
+            className="terminal-select"
             value={priority} 
             onChange={(e) => setPriority(e.target.value)}
-            style={{
-              background: 'rgba(0,0,0,0.3)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
-              padding: '12px 16px',
-              color: 'var(--text-main)',
-              fontFamily: 'var(--font-body)',
-              outline: 'none',
-              cursor: 'pointer'
-            }}
             disabled={isLoading}
           >
-            <option value="high">High Priority</option>
-            <option value="medium">Medium Priority</option>
-            <option value="low">Low Priority</option>
+            <option value="high">high</option>
+            <option value="medium">medium</option>
+            <option value="low">low</option>
           </select>
 
-          <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0 16px' }}>
-            <input
-              type="number"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              min="1"
-              style={{
-                width: '60px',
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-main)',
-                fontFamily: 'var(--font-body)',
-                fontSize: '1rem',
-                outline: 'none'
-              }}
-              disabled={isLoading}
-            />
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>min</span>
-          </div>
+          <label style={{ color: 'var(--text-dim)', fontSize: '9px', letterSpacing: '0.3em' }}>MIN</label>
+          <input
+            type="number"
+            className="terminal-select"
+            value={duration}
+            onChange={(e) => setDuration(e.target.value)}
+            min="1"
+            max="480"
+            style={{ width: '60px', textAlign: 'center' }}
+            disabled={isLoading}
+          />
 
-          <button 
+          <button
             type="submit"
             disabled={isLoading || !content.trim()}
             style={{
-              background: isLoading ? 'var(--border-color)' : 'var(--neon-purple)',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '12px 24px',
-              color: 'white',
-              fontFamily: 'var(--font-heading)',
-              fontWeight: 600,
+              marginLeft: 'auto',
+              background: 'transparent',
+              border: '1px solid var(--neon-purple)',
+              borderRadius: '3px',
+              color: isLoading || !content.trim() ? 'var(--text-dim)' : 'var(--neon-purple)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '9px',
+              letterSpacing: '0.3em',
+              padding: '5px 14px',
               cursor: isLoading || !content.trim() ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'opacity 0.2s'
+              textTransform: 'uppercase',
+              transition: 'all 0.2s',
+              textShadow: isLoading || !content.trim() ? 'none' : 'var(--glow-text)',
+              boxShadow: isLoading || !content.trim() ? 'none' : '0 0 10px rgba(188,19,254,0.2)',
             }}
           >
-            {isLoading ? 'Processing...' : 'Execute'} <Send size={16} />
+            {isLoading ? 'processing...' : 'execute ↵'}
           </button>
         </div>
+        
       </form>
     </div>
   );

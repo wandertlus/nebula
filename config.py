@@ -10,17 +10,18 @@ CONFIG = {
         "engineering": (
             "Building systems, solving technical problems, and improving "
             "engineering capability through consistent learning and execution. "
-            "Focus on architecture, software design, and scalable infrastructure."
+            "Focus on architecture, software design, code, programming, development, "
+            "and scalable infrastructure."
         ),
         "fitness": (
             "Cultivating elite physical performance through disciplined training, "
-            "progressive overload, and physiological optimization. Focus on "
-            "strength, metabolic health, and athletic longevity."
+            "progressive overload, workout, exercise, and physiological optimization. "
+            "Focus on strength, metabolic health, and athletic longevity."
         ),
         "be_fluent": (
             "Achieving native-level English fluency through daily immersion. "
             "Learning one word every day, listening to one hour of advanced "
-            "English, writing letters and technical documents."
+            "English, writing letters, talking, and technical documents."
         ),
     },
 
@@ -33,8 +34,8 @@ CONFIG = {
         "Health":      1.2,
         "space_news":  1.0,
         "Rest":        0.5,
-        "Distraction": -1.5,
-        "Void":        -2.5,
+        "Distraction": -2.0,
+        "Void":        -4.0,
     },
 
     # ── EFFORT INFERENCE ─────────────────────────────────────────────────────
@@ -47,8 +48,8 @@ CONFIG = {
         "Health":      0.7,
         "space_news":  0.4,
         "Rest":        0.2,
-        "Distraction": 0.1,
-        "Void":        0.0,
+        "Distraction": 0.3,   # Increased from 0.1 to give distractions more "mass" in the formula
+        "Void":        0.1,
     },
 
     # ── PHYSICS PARAMETERS ───────────────────────────────────────────────────
@@ -71,9 +72,15 @@ CONFIG = {
     # Friction:          final_score > friction_threshold
     # Degenerate Matter: black_hole_threshold <= final_score <= friction_threshold
     # Black Hole:        final_score < black_hole_threshold
+    #
+    # Calibration notes:
+    #   Impact = Alignment × Weight × DurationNorm^0.7 × Effort^1.3
+    #   Typical alignment scores from cosine similarity: 0.1 – 0.4
+    #   A Work/High/45min signal realistically yields: 0.10 – 0.30
+    #   Friction threshold must be reachable for constructive work signals.
     "thresholds": {
-        "friction":    0.4,
-        "black_hole": -0.3,
+        "friction":    0.08,   # Slightly lowered to make Friction more common
+        "black_hole": -0.01,  # Significantly raised to catch almost any negative score
     },
 
     # ── IDENTITY DRIFT ENGINE ────────────────────────────────────────────────

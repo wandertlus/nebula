@@ -160,10 +160,16 @@ class ProjectNebulaProcessor:
         β = 0.7  → diminishing returns on time
         γ = 1.3  → amplified returns on cognitive intensity
         """
+        # Ensure negative weights always produce a negative impact
+        # even if semantic alignment is 0.0
+        effective_alignment = alignment
+        if weight < 0:
+            effective_alignment = max(alignment, 0.15)
+
         duration_norm = max(duration_minutes, 1) / self.baseline
         duration_factor = duration_norm ** self.beta
         effort_factor   = effort ** self.gamma
-        return alignment * weight * duration_factor * effort_factor
+        return effective_alignment * weight * duration_factor * effort_factor
 
     # ── STATE CLASSIFICATION ──────────────────────────────────────────────────
 

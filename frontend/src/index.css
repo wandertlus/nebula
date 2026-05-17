@@ -1,116 +1,372 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;1,300&display=swap');
+
+/* ── TOKENS ─────────────────────────────────────────────────────────────── */
 :root {
-  --bg-color: #050505;
-  --bg-card: rgba(20, 20, 22, 0.6);
-  --border-color: rgba(255, 255, 255, 0.1);
-  --text-main: #FFFFFF;
-  --text-muted: #8F8F99;
-  
-  /* State Colors */
+  --bg-color: #04030c;
+  --text-main: rgba(235, 225, 255, 0.95);
+  --text-muted: rgba(160, 140, 200, 0.65);
+  --text-dim: rgba(120, 100, 160, 0.45);
+
   --neon-purple: #BC13FE;
-  --warning-orange: #FFA500;
-  --void-black: #222222;
-  --success-green: #00FF9D;
-  
-  --font-heading: 'Space Grotesk', sans-serif;
-  --font-body: 'Inter', sans-serif;
+  --warning-orange: #FF8C00;
+  --success-green: #00E87A;
+
+  --font-display: 'Syne', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+
+  --glow-text: 0 0 10px rgba(188, 19, 254, 0.4), 0 0 20px rgba(188, 19, 254, 0.2);
+  --glow-text-orange: 0 0 10px rgba(255, 140, 0, 0.4), 0 0 20px rgba(255, 140, 0, 0.2);
+}
+
+/* ── RESET ───────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  margin: 0;
   background-color: var(--bg-color);
   color: var(--text-main);
-  font-family: var(--font-body);
+  font-family: var(--font-mono);
+  font-weight: 300;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-image: 
-    radial-gradient(circle at 15% 50%, rgba(188, 19, 254, 0.05), transparent 25%),
-    radial-gradient(circle at 85% 30%, rgba(255, 165, 0, 0.03), transparent 25%);
   min-height: 100vh;
+  overflow: hidden; /* No scrolling on body, the canvas is the world */
+  cursor: crosshair;
 }
 
-h1, h2, h3, h4, h5, h6, .metric-value {
-  font-family: var(--font-heading);
-  font-weight: 600;
-  margin: 0;
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-/* Glassmorphism Utilities */
-.glass-panel {
-  background: var(--bg-card);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-  transition: transform 0.2s ease, border-color 0.2s ease;
-}
-
-.glass-panel:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-/* App Layout */
+/* ── HUD LAYOUT ──────────────────────────────────────────────────────────── */
 .app-container {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 32px 24px;
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none; /* Let clicks pass through to 3D canvas unless on an interactive element */
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas: 
+    "header . metrics"
+    "feed . ."
+    "input input .";
+  padding: 40px;
+  gap: 40px;
+}
+
+.app-container > * {
+  pointer-events: auto; /* Re-enable clicks on HUD elements */
+}
+
+/* ── HEADER (Top Left) ───────────────────────────────────────────────────── */
+.header {
+  grid-area: header;
   display: flex;
   flex-direction: column;
-  gap: 32px;
-}
-
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 24px;
+  gap: 8px;
+  align-items: flex-start;
 }
 
 .header h1 {
-  font-size: 2rem;
-  letter-spacing: -0.02em;
-  background: linear-gradient(90deg, #FFFFFF, #A0A0A0);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-size: 2.5rem;
+  letter-spacing: -0.05em;
+  color: var(--text-main);
+  text-shadow: var(--glow-text);
+  line-height: 1;
 }
 
-/* Grids */
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success-green);
+  box-shadow: 0 0 10px var(--success-green);
+  animation: pulse 2s infinite;
+}
+
+/* ── METRICS (Top Right) ─────────────────────────────────────────────────── */
 .metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-area: metrics;
+  display: flex;
+  flex-direction: column;
   gap: 24px;
+  align-items: flex-end;
+  text-align: right;
 }
 
-.charts-grid {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 24px;
+.metric-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
 }
 
-@media (max-width: 1024px) {
-  .charts-grid {
-    grid-template-columns: 1fr;
+.metric-label {
+  font-size: 9px;
+  letter-spacing: 0.4em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.metric-value {
+  font-family: var(--font-display);
+  font-size: 2.8rem;
+  font-weight: 800;
+  line-height: 0.9;
+  text-shadow: var(--glow-text);
+}
+
+.metric-value.warning {
+  text-shadow: var(--glow-text-orange);
+}
+
+.metric-delta {
+  font-size: 10px;
+  letter-spacing: 0.15em;
+}
+
+/* ── TELEMETRY FEED (Middle Left) ────────────────────────────────────────── */
+.telemetry-feed {
+  grid-area: feed;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+  max-height: 50vh;
+  overflow: hidden;
+}
+
+.signal-item {
+  font-family: var(--font-mono);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 0.7;
+  transition: opacity 0.3s;
+}
+
+.signal-item:hover {
+  opacity: 1;
+}
+
+.signal-meta {
+  font-size: 9px;
+  color: var(--neon-purple);
+  letter-spacing: 0.2em;
+}
+
+.signal-text {
+  font-size: 0.9rem;
+  color: var(--text-main);
+}
+
+.signal-stats {
+  font-size: 9px;
+  color: var(--text-dim);
+  display: flex;
+  gap: 12px;
+}
+
+/* ── COMMAND INPUT (Bottom Left) ─────────────────────────────────────────── */
+.command-input {
+  grid-area: input;
+  align-self: flex-end;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-family: var(--font-mono);
+  padding-bottom: 8px;
+}
+
+.cmd-prompt {
+  color: var(--neon-purple);
+  font-weight: 700;
+  font-size: 1.2rem;
+  text-shadow: var(--glow-text);
+  padding-top: 6px;
+  flex-shrink: 0;
+}
+
+.terminal-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--text-dim);
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  padding: 6px 0;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.3s;
+}
+
+.terminal-input:focus {
+  border-bottom-color: var(--neon-purple);
+  box-shadow: 0 4px 10px -6px var(--neon-purple);
+}
+
+.terminal-select {
+  background: transparent;
+  border: 1px solid var(--text-dim);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  outline: none;
+  cursor: pointer;
+}
+
+.terminal-select:focus {
+  border-color: var(--neon-purple);
+  color: var(--text-main);
+}
+
+.terminal-select option {
+  background: var(--bg-color);
+  color: var(--text-main);
+}
+
+/* ── ANIMATIONS ──────────────────────────────────────────────────────────── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: fadeUp 0.8s ease-out forwards;
+}
+
+/* ── RESPONSIVE HUD ───────────────────────────────────────────────────────── */
+@media (max-width: 1400px) {
+  .app-container {
+    padding: 30px;
+    gap: 20px;
+    grid-template-columns: 1.2fr 1fr 1fr;
   }
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+@media (max-width: 1100px) {
+  .app-container {
+    grid-template-areas: 
+      "header . metrics"
+      "feed feed ."
+      "input input input";
+    grid-template-rows: auto 1fr auto;
+    padding: 20px;
+  }
+  
+  .metrics-grid {
+    gap: 12px;
+  }
+  
+  .metric-value {
+    font-size: 2rem;
+  }
+
+  .telemetry-feed {
+    max-height: 40vh;
+  }
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+
+@media (max-width: 800px) {
+  .app-container {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    pointer-events: auto;
+  }
+
+  .header, .metrics-grid, .telemetry-feed, .command-input {
+    width: 100%;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .metric-field {
+    align-items: flex-start;
+  }
+
+  .telemetry-feed {
+    max-height: none;
+    overflow: visible;
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+  
+  body {
+    overflow: auto;
+  }
 }
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+
+/* ── STATUS VARIATIONS ────────────────────────────────────────────────────── */
+.status-dot.online {
+  background: var(--success-green);
+  box-shadow: 0 0 10px var(--success-green);
 }
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+
+.status-dot.offline {
+  background: #ff4d4d;
+  box-shadow: 0 0 10px #ff4d4d;
+  animation: pulse 1s infinite;
+}
+
+/* ── LOADING ─────────────────────────────────────────────────────────────── */
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background: var(--bg-color);
+  z-index: 100;
+}
+
+.signal-flash {
+  animation: flash-impulse 0.6s ease-out;
+}
+
+@keyframes flash-impulse {
+  0% { background: rgba(188, 19, 254, 0.1); }
+  100% { background: transparent; }
+}
+
+.loading-text {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.5em;
+  text-transform: uppercase;
+  color: var(--neon-purple);
+  text-shadow: var(--glow-text);
+  animation: pulse 1.5s infinite;
 }
