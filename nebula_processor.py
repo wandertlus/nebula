@@ -29,12 +29,57 @@ import numpy as np
 import nltk
 
 from datetime import datetime
+from enum import Enum
 from nltk.tokenize import word_tokenize
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from typing import Dict, TypedDict
 
 from config import CONFIG
+from physics_domain import (
+    IdentityDrift,
+    SignalDrift,
+    empty_coherence_foundation,
+    infer_resource_transformation,
+    resolve_trajectory,
+)
 from storage import load_identity_state, save_identity_state, save_event
+from venture_system import apply_venture_signal
+
+
+class EventType(Enum):
+    STRUCTURED = "structured"
+    CASUAL = "casual"
+    DEGENERATE = "degenerate"
+
+
+class PhysicsProfile(TypedDict):
+    mass_gain: float
+    momentum_gain: float
+    decay_resistance: float
+    visual_weight: float
+
+
+EVENT_PHYSICS: Dict[EventType, PhysicsProfile] = {
+    EventType.STRUCTURED: {
+        "mass_gain": 0.8,
+        "momentum_gain": 0.2,
+        "decay_resistance": 0.9,
+        "visual_weight": 1.0,
+    },
+    EventType.CASUAL: {
+        "mass_gain": 0.05,
+        "momentum_gain": 0.9,
+        "decay_resistance": 0.2,
+        "visual_weight": 0.3,
+    },
+    EventType.DEGENERATE: {
+        "mass_gain": -0.4,
+        "momentum_gain": -0.8,
+        "decay_resistance": 0.5,
+        "visual_weight": 0.8,
+    },
+}
 
 # ── NLTK bootstrap ───────────────────────────────────────────────────────────
 try:
@@ -176,11 +221,47 @@ class ProjectNebulaProcessor:
     def determine_state(self, final_score: float) -> dict:
         t = self.config.get("thresholds", {"friction": 0.4, "black_hole": -0.3})
         if final_score > t["friction"]:
-            return {"state": "Friction",          "color": "#BC13FE"}
+            return {"state": "Friction"}
         elif final_score >= t["black_hole"]:
-            return {"state": "Degenerate Matter", "color": "#FFA500"}
+            return {"state": "Degenerate Matter"}
         else:
-            return {"state": "Black Hole",        "color": "#000000"}
+            return {"state": "Black Hole"}
+
+    def resolve_event_type(self, payload: dict, weight: float, duration: int, result_value) -> EventType:
+        raw_type = (
+            payload.get("behavioral_type")
+            or payload.get("event_type")
+            or payload.get("type")
+        )
+        if raw_type:
+            normalized = str(raw_type).lower().strip()
+            for event_type in EventType:
+                if normalized == event_type.value:
+                    return event_type
+
+        if weight < 0:
+            return EventType.DEGENERATE
+
+        category = str(payload.get("category", "")).lower()
+        priority = str(payload.get("priority", "medium")).lower()
+        has_result = result_value is not None and float(result_value) > 0
+        is_deep_session = duration >= self.baseline * 1.5
+
+        if has_result or is_deep_session or priority == "high":
+            return EventType.STRUCTURED
+        if category in {"rest", "space_news"} or duration < self.baseline:
+            return EventType.CASUAL
+        return EventType.STRUCTURED
+
+    def build_physics_payload(self, alignment_score: float, event_type: EventType) -> dict:
+        profile = EVENT_PHYSICS[event_type]
+        mass_impact = alignment_score * profile["mass_gain"]
+        return {
+            "mass_impact": round(mass_impact, 6),
+            "momentum_burst": round(profile["momentum_gain"], 6),
+            "decay_resistance": round(profile["decay_resistance"], 6),
+            "visual_scale": round(profile["visual_weight"], 6),
+        }
 
     # ── EFFICIENCY TRACKING ───────────────────────────────────────────────────
 
@@ -244,7 +325,7 @@ class ProjectNebulaProcessor:
             # Effort signals (optional, extensible)
             raw_effort_signals = payload.get("effort_signals", {})
             result_type  = raw_effort_signals.get("result_type")   # "numeric" | "text" | None
-            result_value = raw_effort_signals.get("result_value")  # number or None
+            result_value = raw_effort_signals.get("result_value") or payload.get("result_value")
             result_unit  = raw_effort_signals.get("result_unit")   # "pages" | "reps" | etc
             result_text  = raw_effort_signals.get("result_text")   # free text description
             custom       = raw_effort_signals.get("custom", {})    # future extensibility port
@@ -268,8 +349,16 @@ class ProjectNebulaProcessor:
             dominant_attractor  = max(alignments, key=alignments.get)
             alignment_score     = alignments[dominant_attractor]
 
+            event_type = self.resolve_event_type(payload, weight, duration, result_value)
+            physics_payload = self.build_physics_payload(alignment_score, event_type)
+
             # ── 4. PHYSICS: IMPACT SCORE ──────────────────────────────────────
             final_score = self.compute_impact(alignment_score, weight, duration, effort)
+
+            # Aggregated info (result_value) amplification: Ensure results create significant mass
+            if result_value is not None and float(result_value) > 0:
+                # Logarithmic boost: 1 -> +13%, 10 -> +47%, 100 -> +92%
+                final_score *= (1.0 + np.log1p(result_value) * 0.2)
 
             # ── 5. STATE CLASSIFICATION ───────────────────────────────────────
             state_result = self.determine_state(final_score)
@@ -314,6 +403,24 @@ class ProjectNebulaProcessor:
             )
             global_dominant_identity = max(global_dominance, key=global_dominance.get)
 
+            dominant_trajectory = resolve_trajectory(
+                category,
+                dominant_attractor,
+                action_text,
+            )
+            signal_drift = SignalDrift(
+                magnitude=round(drift_delta, 8),
+                dynamic_pull=round(dynamic_pull, 6),
+                dominant_trajectory=dominant_trajectory,
+                dominant_attractor=dominant_attractor,
+                vector_space=self.backend,
+            )
+            identity_drift = IdentityDrift(
+                global_dominant_identity=global_dominant_identity,
+                global_dominance={k: round(v, 6) for k, v in global_dominance.items()},
+                accumulated_vector_dimension=len(self.current_identity),
+            )
+
             # ── 8. PERSIST STATE ──────────────────────────────────────────────
             save_identity_state(
                 self.current_identity,
@@ -323,6 +430,21 @@ class ProjectNebulaProcessor:
 
             # ── 9. BUILD EVENT ────────────────────────────────────────────────
             event_id = str(uuid.uuid4())
+            inferred_transformation = infer_resource_transformation(
+                event_id=event_id,
+                action_text=action_text,
+                category=category,
+                duration=duration,
+                dominant_trajectory=dominant_trajectory,
+                effort=effort,
+                result_value=result_value,
+            )
+            resource_transformation = payload.get("resource_transformation") or inferred_transformation.to_dict()
+            venture_update = apply_venture_signal(
+                payload=payload,
+                alignments=alignments,
+                weight=weight,
+            )
             event = {
                 "event_id":                event_id,
                 "timestamp":               datetime.utcnow().isoformat(),
@@ -336,6 +458,22 @@ class ProjectNebulaProcessor:
                 "state":                   state_result["state"],
                 "dominant_attractor":      dominant_attractor,
                 "global_dominant_identity": global_dominant_identity,
+                "event_name":              action_text,
+                "semantic_alignment":      round(alignment_score, 6),
+                "behavioral_type":         event_type.value,
+                "physics":                 physics_payload,
+                "resource_transformation": resource_transformation,
+                "trajectory": {
+                    "key": dominant_trajectory,
+                    "source": "rule_based_bridge",
+                    "linked_identity_field": dominant_attractor,
+                },
+                "drift": {
+                    "signal": signal_drift.to_dict(),
+                    "identity": identity_drift.to_dict(),
+                },
+                "coherence": empty_coherence_foundation(),
+                "venture": venture_update,
 
                 # Effort signals — extensible schema
                 "effort_signals": {
@@ -353,6 +491,9 @@ class ProjectNebulaProcessor:
                 # Full physics audit trail
                 "physics_params": {
                     "alignment":        round(alignment_score, 6),
+                    "fundamental_impact": physics_payload["mass_impact"],
+                    "behavioral_type":   event_type.value,
+                    "event_physics_profile": EVENT_PHYSICS[event_type],
                     "impact_weight":    round(weight, 4),
                     "effort":           effort,
                     "beta_duration":    self.beta,
@@ -366,6 +507,7 @@ class ProjectNebulaProcessor:
                     "active_backend":   self.backend,
                     "identity_snapshot": {
                         "drift_delta":              round(drift_delta, 8),
+                        "drift_scope":              "identity",
                         "dynamic_pull":             round(dynamic_pull, 6),
                         "inertia":                  self.inertia,
                         "duration_factor":          round(duration_factor, 4),
@@ -377,11 +519,28 @@ class ProjectNebulaProcessor:
 
             save_event(event, self.config)
 
+            # Identity-based color (match with cards)
+            id_colors = self.config.get("identity_colors", {})
+            display_color = id_colors.get(dominant_attractor, "#888888")
+
             # ── 10. RETURN SUMMARY ────────────────────────────────────────────
             return json.dumps({
                 "event_id":                event_id,
+                "event_name":              action_text,
+                "category":                dominant_attractor,
+                "semantic_alignment":      round(alignment_score, 6),
+                "behavioral_type":         event_type.value,
+                "physics":                 physics_payload,
+                "resource_transformation": resource_transformation,
+                "trajectory":              dominant_trajectory,
+                "drift": {
+                    "signal": signal_drift.to_dict(),
+                    "identity": identity_drift.to_dict(),
+                },
+                "coherence":               empty_coherence_foundation(),
+                "venture":                 venture_update,
                 "state":                   state_result["state"],
-                "color":                   state_result["color"],
+                "color":                   display_color,
                 "dominant_attractor":      dominant_attractor,
                 "global_dominant_identity": global_dominant_identity,
                 "all_alignments":          {k: round(v, 6) for k, v in alignments.items()},

@@ -1,3 +1,4 @@
+# Project Nebula Configuration - Live Reload Triggered
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -23,6 +24,14 @@ CONFIG = {
             "Learning one word every day, listening to one hour of advanced "
             "English, writing letters, talking, and technical documents."
         ),
+    },
+
+    # ── IDENTITY COLORS ──────────────────────────────────────────────────────
+    # Colores específicos para cada campo de identidad (usados en nodos y cards).
+    "identity_colors": {
+        "engineering": "#00D1FF",  # Azul Tecnológico
+        "fitness":     "#FF3D00",  # Naranja/Rojo Energía
+        "be_fluent":   "#4CAF50",  # Verde Crecimiento
     },
 
     # ── CATEGORY WEIGHTS (impact_tones) ──────────────────────────────────────
@@ -93,6 +102,27 @@ CONFIG = {
     #   Low value = slow adaptation (memory of past performance)
     #   High value = fast adaptation (recent performance dominates)
     "efficiency_alpha": 0.1,
+
+    # ── CANONICAL RESOURCE MODEL ─────────────────────────────────────────────
+    # Resources are transferable capacities. They are not identities.
+    "resources": [
+        "time",
+        "energy",
+        "attention",
+        "money",
+        "knowledge",
+        "relationships",
+    ],
+
+    # Trajectories are recurring resource-transformation patterns.
+    # Existing identity fields remain as the current emergent-layer bridge.
+    "trajectories": [
+        "entrepreneurship",
+        "engineering",
+        "language_fluency",
+        "employment",
+        "health",
+    ],
 
     # ── ENGINE SETTINGS ──────────────────────────────────────────────────────
     # Options: "tfidf" (fast, lexical) | "minilm" (semantic, recommended)

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const SignalInput = ({ onSubmit, isLoading }) => {
+const SignalInput = ({ onSubmit, isLoading, feedback, onInputChange }) => {
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('Work');
   const [priority, setPriority] = useState('medium');
@@ -24,22 +24,28 @@ const SignalInput = ({ onSubmit, isLoading }) => {
     <div className="command-input">
       <div className="cmd-prompt">_&gt;</div>
       
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
-        
-        {/* Main text input */}
+      <form onSubmit={handleSubmit} className="terminal-form">
+        {feedback && (
+          <div className={`terminal-feedback ${feedback.type === 'error' ? 'error' : ''}`}>
+            {feedback.text}
+          </div>
+        )}
+
         <input
           type="text"
           className="terminal-input"
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={(e) => {
+            setContent(e.target.value);
+            if (onInputChange) onInputChange();
+          }}
           placeholder="Inject signal to observatory..."
           disabled={isLoading}
           autoFocus
         />
 
-        {/* Controls row */}
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <label style={{ color: 'var(--text-dim)', fontSize: '9px', letterSpacing: '0.3em' }}>CAT</label>
+        <div className="terminal-controls">
+          <label className="terminal-label">CAT</label>
           <select 
             className="terminal-select"
             value={category} 
@@ -54,7 +60,7 @@ const SignalInput = ({ onSubmit, isLoading }) => {
             <option value="space_news">space_news</option>
           </select>
 
-          <label style={{ color: 'var(--text-dim)', fontSize: '9px', letterSpacing: '0.3em' }}>PRI</label>
+          <label className="terminal-label">PRI</label>
           <select 
             className="terminal-select"
             value={priority} 
@@ -66,37 +72,21 @@ const SignalInput = ({ onSubmit, isLoading }) => {
             <option value="low">low</option>
           </select>
 
-          <label style={{ color: 'var(--text-dim)', fontSize: '9px', letterSpacing: '0.3em' }}>MIN</label>
+          <label className="terminal-label">MIN</label>
           <input
             type="number"
-            className="terminal-select"
+            className="terminal-select terminal-duration"
             value={duration}
             onChange={(e) => setDuration(e.target.value)}
             min="1"
             max="480"
-            style={{ width: '60px', textAlign: 'center' }}
             disabled={isLoading}
           />
 
           <button
             type="submit"
+            className="terminal-submit"
             disabled={isLoading || !content.trim()}
-            style={{
-              marginLeft: 'auto',
-              background: 'transparent',
-              border: '1px solid var(--neon-purple)',
-              borderRadius: '3px',
-              color: isLoading || !content.trim() ? 'var(--text-dim)' : 'var(--neon-purple)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '9px',
-              letterSpacing: '0.3em',
-              padding: '5px 14px',
-              cursor: isLoading || !content.trim() ? 'not-allowed' : 'pointer',
-              textTransform: 'uppercase',
-              transition: 'all 0.2s',
-              textShadow: isLoading || !content.trim() ? 'none' : 'var(--glow-text)',
-              boxShadow: isLoading || !content.trim() ? 'none' : '0 0 10px rgba(188,19,254,0.2)',
-            }}
           >
             {isLoading ? 'processing...' : 'execute ↵'}
           </button>

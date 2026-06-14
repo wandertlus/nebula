@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-06-14T13:21:34.879093",
+  "ventures": {
+    "cafe_test": {
+      "capability_demand": {
+        "business_operations": 0.0,
+        "communication": 0.0,
+        "financial_management": 0.0
+      },
+      "drift": 5.0809999999999995,
+      "id": "cafe_test",
+      "mass": 5.0,
+      "momentum": 0.271,
+      "name": "Cafe Test",
+      "resource_flow": {
+        "energy_in": 0.0,
+        "money_in": 50.0,
+        "money_out": 200.0,
+        "time_in": 240.0
+      },
+      "type": "business"
+    }
+  }
+}

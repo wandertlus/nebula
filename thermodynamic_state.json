@@ -1,0 +1,19 @@
+{
+  "engineering": {
+    "mass": 1.0,
+    "momentum": 1.21
+  },
+  "fitness": {
+    "mass": 1.0,
+    "momentum": 0.01
+  },
+  "be_fluent": {
+    "mass": 1.7252234768185915,
+    "momentum": 0.01
+  },
+  "find_job": {
+    "mass": 1.0,
+    "momentum": 0.01
+  },
+  "_last_decay": "2026-05-23T21:41:36.841335"
+}

@@ -11,10 +11,12 @@ function App() {
   const [fieldMasses, setFieldMasses] = useState({});
   const [connections, setConnections] = useState({});
   const [dominant, setDominant] = useState(null);
+  const [selectedField, setSelectedField] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [apiOnline, setApiOnline] = useState(true);
   const [flash, setFlash] = useState(false);
+  const [terminalFeedback, setTerminalFeedback] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -43,19 +45,16 @@ function App() {
     fetchData();
   }, []);
 
-  // Dynamic Theme: Update global CSS variables based on dominant field
+  // Dynamic Theme: Update global CSS variables based on dominant field in real-time
   useEffect(() => {
     const root = document.documentElement;
-    const FIELD_COLORS = {
-      engineering: '#BC13FE',
-      fitness:     '#FF8C00',
-      be_fluent:   '#5ba8e8',
-    };
+    const meta = getFieldMeta(dominant || 'engineering');
+    const color = meta.color;
+    const glow = meta.glow;
     
-    const color = FIELD_COLORS[dominant] || '#BC13FE';
     root.style.setProperty('--neon-purple', color);
     root.style.setProperty('--glow-text', `0 0 10px ${color}66, 0 0 20px ${color}33`);
-  }, [dominant]);
+  }, [dominant, fieldMasses]);
 
   const handleSignalSubmit = async (payload) => {
     setSubmitting(true);
@@ -65,6 +64,22 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      const result = await res.json().catch(() => ({}));
+
+      if (result.status?.includes('command') || result.message) {
+        setTerminalFeedback({
+          type: result.status === 'error' ? 'error' : 'command',
+          text: result.message || 'Command executed.',
+        });
+      } else if (result.error) {
+        setTerminalFeedback({ type: 'error', text: result.error });
+      } else {
+        setTerminalFeedback({
+          type: 'signal',
+          text: `Signal assigned -> ${result.dominant_attractor ?? 'unknown'} | score ${result.final_score ?? 0} | backend ${result.active_backend ?? 'semantic'}`,
+        });
+      }
+
       if (res.ok) {
         setFlash(true);
         setTimeout(() => setFlash(false), 600);
@@ -77,6 +92,32 @@ function App() {
     }
   };
 
+  const handleCoreClick = (fieldKey) => {
+    setSelectedField(fieldKey);
+  };
+
+  const getFieldMeta = (fieldKey) => {
+    const defaults = {
+      engineering: { label: 'Engineering', color: '#BC13FE', glow: 'rgba(188,19,254,0.4)' },
+      fitness:     { label: 'Fitness',     color: '#FF8C00', glow: 'rgba(255,140,0,0.4)'  },
+      be_fluent:   { label: 'Be Fluent',   color: '#5ba8e8', glow: 'rgba(91,168,232,0.4)' },
+    };
+
+    if (defaults[fieldKey]) return defaults[fieldKey];
+
+    const fields = Object.keys(fieldMasses);
+    const index = fields.indexOf(fieldKey);
+    const hue = index !== -1 ? (index * 137.5) % 360 : 200;
+    const color = `hsl(${hue}, 85%, 65%)`;
+    const glow = `hsla(${hue}, 85%, 65%, 0.4)`;
+    const label = fieldKey
+      .split(/[_-]/)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+
+    return { label, color, glow };
+  };
+
   const latestEvent  = events[events.length - 1] || {};
   const currentState = latestEvent.state || 'Friction';
   const finalScore   = latestEvent.final_score ?? 0;
@@ -85,7 +126,7 @@ function App() {
   if (loading) {
     return (
       <>
-        <Nebula3DBackground fieldMasses={fieldMasses} connections={connections} currentState={currentState} />
+        <Nebula3DBackground events={events} fieldMasses={fieldMasses} connections={connections} currentState={currentState} />
         <div className="loading-screen">
           <div className="loading-text">Initializing Semantic Observatory</div>
         </div>
@@ -95,17 +136,42 @@ function App() {
 
   const efficiency = latestEvent.effort_signals?.efficiency_ratio ?? null;
 
+  const getAtmosphericGlow = (fieldKey) => {
+    const meta = getFieldMeta(fieldKey);
+    if (!meta) return 'transparent';
+    if (meta.color.startsWith('hsl')) {
+      return meta.color.replace('hsl', 'hsla').replace(')', ', 0.07)');
+    }
+    return `${meta.color}12`;
+  };
+
   return (
     <>
       <Nebula3DBackground
+        events={events}
         fieldMasses={fieldMasses}
         connections={connections}
         currentState={currentState}
         finalScore={finalScore}
         driftDelta={driftDelta}
+        onCoreClick={handleCoreClick}
       />
 
-      <div className={`app-container animate-in ${flash ? 'signal-flash' : ''}`}>
+      {/* Atmospheric Room Bloom / Light Bleed Overlay */}
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        background: `radial-gradient(circle at 50% 50%, ${getAtmosphericGlow(dominant || 'engineering')} 0%, transparent 68%)`,
+        pointerEvents: 'none',
+        zIndex: 0,
+        transition: 'background 1.5s cubic-bezier(0.16, 1, 0.3, 1)',
+      }} />
+
+      <div 
+        className={`app-container animate-in ${flash ? 'signal-flash' : ''}`}
+        // Asegura que la UI esté por encima del fondo y el overlay
+        style={{ position: 'relative', zIndex: 10 }}
+      >
 
         {/* ── TOP LEFT: Identifier ── */}
         <header className="header">
@@ -175,9 +241,123 @@ function App() {
         </div>
 
         {/* ── BOTTOM LEFT: Command input ── */}
-        <SignalInput onSubmit={handleSignalSubmit} isLoading={submitting} />
+        <SignalInput
+          onSubmit={handleSignalSubmit}
+          isLoading={submitting}
+          feedback={terminalFeedback}
+          onInputChange={() => setTerminalFeedback(null)}
+        />
 
       </div>
+
+      {/* ── CENTRAL FLOATING HUD POPUP: Core Diagnostics ── */}
+      {selectedField && (() => {
+        const meta = getFieldMeta(selectedField);
+        const mass = fieldMasses[selectedField] ?? 0;
+        const pct = Math.round(mass * 100);
+
+        // Filter events where this field was aligned/active
+        const contributingEvents = events
+          .filter(ev => {
+            const alignments = ev.physics_params?.all_alignments || {};
+            return (alignments[selectedField] ?? 0) > 0.05;
+          })
+          .slice(-5)
+          .reverse();
+
+        // Compute semantic correlations
+        const fieldConnections = Object.entries(connections)
+          .filter(([key]) => key.includes(selectedField))
+          .map(([key, value]) => {
+            const otherField = key.replace(`${selectedField}:`, '').replace(`:${selectedField}`, '');
+            const otherMeta = getFieldMeta(otherField);
+            return { key, otherField, label: otherMeta.label, strength: value, color: otherMeta.color };
+          });
+
+        return (
+          <div className="core-popup-overlay animate-fade-in" onClick={() => setSelectedField(null)}>
+            <div 
+              className="core-popup-card animate-slide-up" 
+              style={{ 
+                '--core-color': meta.color, 
+                '--core-glow': meta.glow,
+                borderColor: meta.color,
+                boxShadow: `0 0 30px ${meta.glow}, inset 0 0 15px rgba(255,255,255,0.02)`
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button className="core-popup-close" onClick={() => setSelectedField(null)}>×</button>
+              
+              <div className="popup-badge" style={{ color: meta.color, borderColor: `${meta.color}33` }}>
+                System Core Active
+              </div>
+              
+              <h2 className="popup-title" style={{ color: meta.color, textShadow: `0 0 12px ${meta.glow}` }}>
+                {meta.label} Diagnostics
+              </h2>
+              
+              <div className="popup-mass-row">
+                <span className="mass-label">Identity Orbit Share:</span>
+                <span className="mass-value" style={{ color: meta.color }}>{pct}%</span>
+              </div>
+              
+              <div className="popup-section">
+                <h3>Feeding Signals <span className="section-subtitle">(Recent inputs affecting this core)</span></h3>
+                <div className="popup-signals-list">
+                  {contributingEvents.map((ev, idx) => {
+                    const alignment = ev.physics_params?.all_alignments?.[selectedField] ?? 0;
+                    const contrib = alignment * ev.final_score * 10;
+                    return (
+                      <div key={idx} className="popup-signal-item">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                          <span className="signal-time">[{new Date(ev.timestamp).toLocaleTimeString()}]</span>
+                          <span className="signal-contrib" style={{ color: contrib >= 0 ? '#5ba8e8' : '#FF8C00' }}>
+                            {contrib >= 0 ? '+' : ''}{contrib.toFixed(2)}% Mass
+                          </span>
+                        </div>
+                        <p className="signal-desc">{ev.action_text}</p>
+                      </div>
+                    );
+                  })}
+                  {contributingEvents.length === 0 && (
+                    <div className="empty-signals">No recent feeding signals recorded.</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="popup-section">
+                <h3>Semantic Tension Lines <span className="section-subtitle">(Correlations with other cores)</span></h3>
+                <div className="popup-correlations-list">
+                  {fieldConnections.map((conn, idx) => {
+                    const corrPct = Math.round(conn.strength * 100);
+                    let description = "Fricción. Campos operando de forma aislada.";
+                    if (conn.strength > 0.6) {
+                      description = "Alta Sincronicidad. El hiperfoco alimenta directamente esta conexión.";
+                    } else if (conn.strength > 0.25) {
+                      description = "Co-activación moderada. Puente neuronal establecido.";
+                    }
+                    return (
+                      <div key={idx} className="popup-correlation-item">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                          <span className="corr-field" style={{ color: conn.color }}>{conn.label}</span>
+                          <span className="corr-strength">{corrPct}% Correlation</span>
+                        </div>
+                        <div className="corr-bar-bg">
+                          <div className="corr-bar-fill" style={{ width: `${corrPct}%`, background: conn.color }} />
+                        </div>
+                        <p className="corr-desc">{description}</p>
+                      </div>
+                    );
+                  })}
+                  {fieldConnections.length === 0 && (
+                    <div className="empty-signals">No semantic correlations computed.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </>
   );
 }
