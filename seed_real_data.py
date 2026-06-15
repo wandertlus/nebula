@@ -174,11 +174,13 @@ def send_signal(signal: Signal, verbose: bool = True) -> dict:
     with urllib.request.urlopen(req, timeout=10) as resp:
         result = json.loads(resp.read())
     if verbose:
-        score = result.get("final_score", "?")
+        score = result.get("final_score", None)
         state = result.get("state", "?")
-        align = result.get("alignment_score", "?")
+        align = result.get("semantic_alignment", result.get("alignment_score", None))
         dominant = result.get("dominant_attractor", "?")
-        print(f"  score={score:.3f}  align={align:.3f}  state={state}  dominant={dominant}")
+        score_s = f"{score:.3f}" if isinstance(score, (int, float)) else "?"
+        align_s = f"{align:.3f}" if isinstance(align, (int, float)) else "?"
+        print(f"  score={score_s}  align={align_s}  state={state}  dominant={dominant}")
     return result
 
 

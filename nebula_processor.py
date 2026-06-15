@@ -119,7 +119,7 @@ class ProjectNebulaProcessor:
             self.model_minilm = SentenceTransformer("all-MiniLM-L6-v2")
             self.target_vectors_minilm = self.model_minilm.encode(identity_texts)
             self.minilm_available = True
-        except ImportError:
+        except (ImportError, OSError, Exception):
             pass
 
         # ── Identity state ────────────────────────────────────────────────────
