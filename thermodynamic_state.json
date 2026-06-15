@@ -1,19 +1,15 @@
 {
+  "_last_decay": "",
   "engineering": {
-    "mass": 1.0,
-    "momentum": 1.21
+    "mass": 2.1781149999999996,
+    "momentum": 0.71
   },
   "fitness": {
-    "mass": 1.0,
-    "momentum": 0.01
+    "mass": 2.083412,
+    "momentum": 1.01
   },
   "be_fluent": {
-    "mass": 1.7252234768185915,
-    "momentum": 0.01
-  },
-  "find_job": {
-    "mass": 1.0,
-    "momentum": 0.01
-  },
-  "_last_decay": "2026-05-23T21:41:36.841335"
+    "mass": 3.7233650000000003,
+    "momentum": 2.01
+  }
 }
