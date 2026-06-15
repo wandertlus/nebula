@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 const SignalInput = ({ onSubmit, isLoading, feedback, onInputChange }) => {
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('Work');
-  const [priority, setPriority] = useState('medium');
   const [duration, setDuration] = useState(30);
 
   const handleSubmit = (e) => {
@@ -13,7 +12,6 @@ const SignalInput = ({ onSubmit, isLoading, feedback, onInputChange }) => {
     onSubmit({
       action_text: content,
       category,
-      priority,
       duration: parseInt(duration, 10),
       effort_signals: {}
     });
@@ -58,18 +56,6 @@ const SignalInput = ({ onSubmit, isLoading, feedback, onInputChange }) => {
             <option value="Rest">rest</option>
             <option value="Distraction">distraction</option>
             <option value="space_news">space_news</option>
-          </select>
-
-          <label className="terminal-label">PRI</label>
-          <select 
-            className="terminal-select"
-            value={priority} 
-            onChange={(e) => setPriority(e.target.value)}
-            disabled={isLoading}
-          >
-            <option value="high">high</option>
-            <option value="medium">medium</option>
-            <option value="low">low</option>
           </select>
 
           <label className="terminal-label">MIN</label>

@@ -10,6 +10,8 @@ from typing import Optional, Dict, Any
 
 import threading
 import time
+from coherence_engine import compute_coherence
+from capability_engine import compute_capabilities
 from storage import load_events, load_identity_state, save_event
 from nebula_processor import ProjectNebulaProcessor
 from config import CONFIG, BASE_DIR
@@ -482,6 +484,34 @@ async def get_thermodynamic_state():
         },
         "last_decay": _thermo_state.get("_last_decay"),
     }
+
+
+@app.get("/api/coherence")
+async def get_coherence():
+    """
+    Compute coherence using the full event history and live thermodynamic state.
+    Score 0.0–1.0 measuring concentration of effort on constructive trajectories.
+    """
+    events = load_events(CONFIG)
+    result = compute_coherence(
+        events=events,
+        thermo_state=_thermo_state,
+    )
+    return result
+
+
+@app.get("/api/capabilities")
+async def get_capabilities():
+    """
+    Evaluate which capabilities are formed based on mass threshold + recent consistency.
+    Returns auditable mass_score and consistency_score per capability.
+    """
+    events = load_events(CONFIG)
+    result = compute_capabilities(
+        events=events,
+        thermo_state=_thermo_state,
+    )
+    return result
 
 
 if __name__ == "__main__":

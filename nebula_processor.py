@@ -35,15 +35,15 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from typing import Dict, TypedDict
 
+from coherence_engine import compute_coherence
 from config import CONFIG
 from physics_domain import (
     IdentityDrift,
     SignalDrift,
-    empty_coherence_foundation,
     infer_resource_transformation,
     resolve_trajectory,
 )
-from storage import load_identity_state, save_identity_state, save_event
+from storage import load_events, load_identity_state, save_identity_state, save_event
 from venture_system import apply_venture_signal
 
 
@@ -428,6 +428,13 @@ class ProjectNebulaProcessor:
                 self.config,
             )
 
+            # ── 8b. COHERENCE (over full event history) ───────────────────────
+            recent_events  = load_events(self.config)
+            coherence_result = compute_coherence(
+                events=recent_events,
+                thermo_state={},   # no thermo access here; /api/coherence uses live state
+            )
+
             # ── 9. BUILD EVENT ────────────────────────────────────────────────
             event_id = str(uuid.uuid4())
             inferred_transformation = infer_resource_transformation(
@@ -472,7 +479,7 @@ class ProjectNebulaProcessor:
                     "signal": signal_drift.to_dict(),
                     "identity": identity_drift.to_dict(),
                 },
-                "coherence": empty_coherence_foundation(),
+                "coherence": coherence_result,
                 "venture": venture_update,
 
                 # Effort signals — extensible schema
@@ -537,7 +544,7 @@ class ProjectNebulaProcessor:
                     "signal": signal_drift.to_dict(),
                     "identity": identity_drift.to_dict(),
                 },
-                "coherence":               empty_coherence_foundation(),
+                "coherence":               coherence_result,
                 "venture":                 venture_update,
                 "state":                   state_result["state"],
                 "color":                   display_color,

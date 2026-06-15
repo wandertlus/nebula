@@ -3,6 +3,9 @@ import MetricCard from './components/MetricCard';
 import SignalInput from './components/SignalInput';
 import IdentityFields from './components/IdentityFields';
 import Nebula3DBackground from './components/Nebula3DBackground';
+import CoherencePanel from './components/CoherencePanel';
+import CapabilitiesPanel from './components/CapabilitiesPanel';
+import VenturePanel from './components/VenturePanel';
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -17,21 +20,33 @@ function App() {
   const [apiOnline, setApiOnline] = useState(true);
   const [flash, setFlash] = useState(false);
   const [terminalFeedback, setTerminalFeedback] = useState(null);
+  const [coherence, setCoherence] = useState(null);
+  const [capabilities, setCapabilities] = useState(null);
+  const [ventures, setVentures] = useState(null);
 
   const fetchData = async () => {
     try {
-      const [eventsRes, massRes] = await Promise.all([
+      const [eventsRes, massRes, coherenceRes, capabilitiesRes, venturesRes] = await Promise.all([
         fetch(`${API_BASE}/events`),
         fetch(`${API_BASE}/field-mass`),
+        fetch(`${API_BASE}/coherence`),
+        fetch(`${API_BASE}/capabilities`),
+        fetch(`${API_BASE}/ventures`),
       ]);
 
-      const eventsData = await eventsRes.json();
-      const massData   = await massRes.json();
+      const eventsData       = await eventsRes.json();
+      const massData         = await massRes.json();
+      const coherenceData    = await coherenceRes.json();
+      const capabilitiesData = await capabilitiesRes.json();
+      const venturesData     = await venturesRes.json();
 
       setEvents(eventsData.events || []);
       setFieldMasses(massData.field_masses || {});
       setConnections(massData.connections || {});
       setDominant(massData.dominant || null);
+      setCoherence(coherenceData);
+      setCapabilities(capabilitiesData);
+      setVentures(venturesData);
       setApiOnline(true);
     } catch (error) {
       console.error('Failed to fetch data:', error);
@@ -198,14 +213,32 @@ function App() {
             value={driftDelta.toFixed(4)}
           />
           <MetricCard
-            title="Efficiency"
-            value={efficiency !== null ? efficiency.toFixed(2) : '—'}
-            delta={efficiency !== null ? (efficiency >= 1 ? '+Optimal' : '-Sub') : null}
+            title="Coherence"
+            value={coherence?.score != null ? `${Math.round(coherence.score * 100)}%` : '—'}
+            color={
+              coherence?.score >= 0.7 ? '#10B981' :
+              coherence?.score >= 0.4 ? '#F59E0B' :
+              coherence?.score != null ? '#EF4444' :
+              'var(--text-muted)'
+            }
+            delta={coherence?.status ? coherence.status.toUpperCase() : null}
           />
 
-          {/* Identity field mass bars live inside the metrics column */}
+          {/* Identity field mass bars */}
           <div style={{ gridColumn: '1 / -1', marginTop: '8px' }}>
             <IdentityFields fieldMasses={fieldMasses} dominant={dominant} />
+          </div>
+          {/* Coherence breakdown */}
+          <div style={{ gridColumn: '1 / -1', marginTop: '8px' }}>
+            <CoherencePanel coherence={coherence} />
+          </div>
+          {/* Capabilities */}
+          <div style={{ gridColumn: '1 / -1', marginTop: '8px' }}>
+            <CapabilitiesPanel capabilities={capabilities} />
+          </div>
+          {/* Ventures */}
+          <div style={{ gridColumn: '1 / -1', marginTop: '8px' }}>
+            <VenturePanel ventures={ventures} />
           </div>
         </div>
 
